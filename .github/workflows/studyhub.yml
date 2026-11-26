@@ -13,6 +13,8 @@ on:
     paths:
       - 'index.html'
       - 'data.json'
+      - 'content.json'
+      - 'admin.html'
       - 'update_schedule.py'
       - 'sw.js'
       - 'manifest.webmanifest'
