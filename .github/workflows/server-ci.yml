@@ -44,9 +44,9 @@ jobs:
       MYSQL_PASSWORD: ci-app-test-only
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -61,7 +61,7 @@ jobs:
       - name: Apply MySQL migrations
         run: python -m alembic upgrade head
 
-      - name: Import academic data
+      - name: Import acadнemic data
         run: python -m app.import_data
 
       - name: Verify repeat import
