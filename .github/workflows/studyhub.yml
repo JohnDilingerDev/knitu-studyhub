@@ -1,0 +1,70 @@
+name: StudyHub - schedule and Pages
+on:
+  schedule:
+    - cron: '15 3,9,12,19 * * *'
+  workflow_dispatch:
+    inputs:
+      allow_empty_week:
+        description: 'Allow a previously populated week to become empty (only after manual verification)'
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'data.json'
+      - 'update_schedule.py'
+      - 'sw.js'
+      - 'manifest.webmanifest'
+      - 'icon-*.png'
+      - '.github/workflows/studyhub.yml'
+permissions:
+  contents: read
+concurrency:
+  group: studyhub-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: write
+      pages: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/configure-pages@v5
+      - name: Check official timetable and prepare site
+        env:
+          ALLOW_EMPTY: ${{ inputs.allow_empty_week }}
+        run: |
+          args=()
+          if [ "$ALLOW_EMPTY" = "true" ]; then args+=(--allow-empty-week); fi
+          python3 update_schedule.py "${args[@]}" --out _site
+      - name: Save actual timetable changes
+        run: |
+          if ! git diff --quiet -- data.json; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add data.json
+            git commit -m 'Update verified KNITU timetable'
+            git push origin HEAD:main
+          fi
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy StudyHub
+        id: deployment
+        uses: actions/deploy-pages@v4
