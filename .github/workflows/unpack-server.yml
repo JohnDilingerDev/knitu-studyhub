@@ -1,0 +1,55 @@
+name: StudyHub - unpack server
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - 'StudyHub_1.3_develop.zip'
+      - '.github/workflows/unpack-server.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+
+      - name: Extract server archive
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          archive = Path("StudyHub_1.3_develop.zip")
+          assert archive.is_file()
+          assert not Path("server").exists()
+
+          with ZipFile(archive) as z:
+              for item in z.infolist():
+                  p = Path(item.filename)
+                  assert not p.is_absolute()
+                  assert p.parts[0] == "server"
+                  assert ".." not in p.parts
+              assert z.testzip() is None
+              z.extractall(".")
+
+          assert Path("server/app/main.py").is_file()
+          assert Path("server/schema.sql").is_file()
+          PY
+
+      - name: Commit extracted files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/
+          git rm StudyHub_1.3_develop.zip
+          git commit -m "Install StudyHub 1.3 server"
+          git push origin HEAD:develop
+          
