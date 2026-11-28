@@ -115,3 +115,42 @@ CREATE TABLE progress (
 	CONSTRAINT fk_progress_task FOREIGN KEY(group_id, task_code) REFERENCES tasks (group_id, code), 
 	CONSTRAINT ck_progress_status CHECK (status IN ('not_started','in_progress','prepared','checked','submitted','accepted','revise','not_required','clarify'))
 )ENGINE=InnoDB CHARSET=utf8mb4 COLLATE utf8mb4_0900_as_cs;
+
+-- 1.3.1 migration 0002_auth
+
+
+CREATE TABLE auth_sessions (
+    token_hash VARCHAR(64) NOT NULL, 
+    user_id INTEGER NOT NULL, 
+    expires_at BIGINT NOT NULL, 
+    PRIMARY KEY (token_hash), 
+    FOREIGN KEY(user_id) REFERENCES users (id)
+)ENGINE=InnoDB CHARSET=utf8mb4 COLLATE utf8mb4_0900_as_cs;
+
+CREATE INDEX ix_auth_sessions_user_id ON auth_sessions (user_id);
+
+CREATE INDEX ix_auth_sessions_expires_at ON auth_sessions (expires_at);
+
+CREATE TABLE used_launches (
+    signature VARCHAR(64) NOT NULL, 
+    expires_at BIGINT NOT NULL, 
+    PRIMARY KEY (signature)
+)ENGINE=InnoDB CHARSET=utf8mb4 COLLATE utf8mb4_0900_as_cs;
+
+CREATE INDEX ix_used_launches_expires_at ON used_launches (expires_at);
+
+CREATE TABLE audit_events (
+    id INTEGER NOT NULL AUTO_INCREMENT, 
+    actor_id INTEGER NOT NULL, 
+    group_id INTEGER NOT NULL, 
+    action VARCHAR(32) NOT NULL, 
+    object_code VARCHAR(64) NOT NULL, 
+    occurred_at BIGINT NOT NULL, 
+    details JSON NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(actor_id) REFERENCES users (id), 
+    FOREIGN KEY(group_id) REFERENCES study_groups (id)
+)ENGINE=InnoDB CHARSET=utf8mb4 COLLATE utf8mb4_0900_as_cs;
+
+CREATE INDEX ix_audit_group_id ON audit_events (group_id, id);
+

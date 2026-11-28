@@ -1,5 +1,6 @@
 import os
 from sqlalchemy import create_engine, event, URL
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
 def database_url():
@@ -8,7 +9,8 @@ def database_url():
     return URL.create('mysql+pymysql',username=os.environ['MYSQL_USER'],password=os.environ['MYSQL_PASSWORD'],host=os.environ.get('MYSQL_HOST','db'),port=int(os.environ.get('MYSQL_PORT','3306')),database=os.environ['MYSQL_DATABASE'],query={'charset':'utf8mb4'})
 
 def make_engine(url):
-    engine=create_engine(url,pool_pre_ping=True)
+    options={'isolation_level':'READ COMMITTED'} if make_url(url).get_backend_name()=='mysql' else {}
+    engine=create_engine(url,pool_pre_ping=True,**options)
     if engine.dialect.name=='sqlite':
         @event.listens_for(engine,'connect')
         def fk_on(dbapi_connection, _):

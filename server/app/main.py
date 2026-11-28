@@ -1,9 +1,12 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from sqlalchemy import select, text
 from datetime import date
 from typing import Optional
 from contextlib import asynccontextmanager
 from .db import make_engine,database_url,session_factory
+from .private_api import register
 from .models import Group,Subject,Task,ScheduleEntry,Variant,Snapshot,Announcement
 
 def create_app(engine=None):
@@ -13,7 +16,7 @@ def create_app(engine=None):
         app.state.sessions=session_factory(app.state.engine)
         yield
         if engine is None: app.state.engine.dispose()
-    app=FastAPI(title='StudyHub API',version='1.3.0-dev',lifespan=lifespan)
+    app=FastAPI(title='StudyHub API',version='1.3.1-dev',lifespan=lifespan)
     def db():
         with app.state.sessions() as s: yield s
     def group(slug,s):
@@ -31,7 +34,7 @@ def create_app(engine=None):
         return list(s.scalars(select(Variant).where(Variant.group_id==g).order_by(Variant.task_number,Variant.variant_number)))
     @app.get('/health')
     def health(s=Depends(db)):
-        s.execute(text('SELECT 1'));return {'status':'ok','version':'1.3.0-dev'}
+        s.execute(text('SELECT 1'));return {'status':'ok','version':'1.3.1-dev'}
     @app.get('/api/v1/groups')
     def groups(s=Depends(db)):
         return [{'slug':g.slug,'code':g.code,'term':g.term} for g in s.scalars(select(Group).where(Group.public.is_(True)).order_by(Group.slug))]
@@ -53,10 +56,17 @@ def create_app(engine=None):
         if not snapshot: raise HTTPException(404,'Data not imported')
         vs=variant_rows(s,g)
         cm=snapshot.content_meta
-        return {'version':'1.3.0-dev','updated':cm['updated'],'schedule':{**snapshot.schedule_meta,'entries':entries(s,g)},'subjects':{r.code:r.title for r in s.scalars(select(Subject).where(Subject.group_id==g))},'tasks':tasks(s,g),'variants':[[v.topic for v in vs if v.task_number==i] for i in range(1,5)],'deadlines':cm['deadlines'],'announcements':[a.payload for a in s.scalars(select(Announcement).where(Announcement.group_id==g).order_by(Announcement.sort_order))],'content_changes':cm.get('content_changes',[]),'schedule_changes':cm.get('schedule_changes',[])}
-    @app.post('/api/v1/auth/max')
-    def max_auth_disabled(): raise HTTPException(503,'MAX authentication is not configured')
-    # No public mutation or private-progress endpoints until verified MAX sessions exist.
+        return {'version':'1.3.1-dev','updated':cm['updated'],'schedule':{**snapshot.schedule_meta,'entries':entries(s,g)},'subjects':{r.code:r.title for r in s.scalars(select(Subject).where(Subject.group_id==g))},'tasks':tasks(s,g),'variants':[[v.topic for v in vs if v.task_number==i] for i in range(1,5)],'deadlines':cm['deadlines'],'announcements':[a.payload for a in s.scalars(select(Announcement).where(Announcement.group_id==g).order_by(Announcement.sort_order))],'content_changes':cm.get('content_changes',[]),'schedule_changes':cm.get('schedule_changes',[]),**({'sync':cm['sync']} if 'sync' in cm else {})}
+    @app.exception_handler(RequestValidationError)
+    async def safe_validation(request:Request, exc:RequestValidationError):
+        # Do not reflect signed launch data, credentials or personal inputs in errors.
+        return JSONResponse(status_code=422,content={'detail':'Invalid request'},headers={'Cache-Control':'no-store'})
+    @app.middleware('http')
+    async def no_cache(request:Request,call_next):
+        response=await call_next(request)
+        response.headers['Cache-Control']='no-store'
+        return response
+    register(app,db)
     return app
 
 app=create_app()

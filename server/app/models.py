@@ -100,6 +100,28 @@ class Announcement(Base):
     payload: Mapped[dict] = mapped_column(JSON)
     sort_order: Mapped[int] = mapped_column(Integer)
 
+class AuthSession(Base):
+    __tablename__ = 'auth_sessions'
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), index=True)
+    expires_at: Mapped[int] = mapped_column(BigInteger, index=True)
+
+class UsedLaunch(Base):
+    __tablename__ = 'used_launches'
+    signature: Mapped[str] = mapped_column(String(64), primary_key=True)
+    expires_at: Mapped[int] = mapped_column(BigInteger, index=True)
+
+class AuditEvent(Base):
+    __tablename__ = 'audit_events'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    actor_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    group_id: Mapped[int] = mapped_column(ForeignKey('study_groups.id'))
+    action: Mapped[str] = mapped_column(String(32))
+    object_code: Mapped[str] = mapped_column(String(64))
+    occurred_at: Mapped[int] = mapped_column(BigInteger)
+    details: Mapped[dict] = mapped_column(JSON)
+    __table_args__ = (Index('ix_audit_group_id','group_id','id'),)
+
 # Apply explicit storage parameters for all MySQL tables.
 for table in Base.metadata.tables.values():
     table.dialect_options['mysql']['engine'] = 'InnoDB'

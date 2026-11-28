@@ -47,7 +47,8 @@ def test_private_group_and_auth_disabled(db):
     with TestClient(create_app(e)) as c:
         assert len(c.get('/api/v1/groups').json())==1
         assert c.get('/api/v1/groups/private/bundle').status_code==404
-        assert c.post('/api/v1/auth/max',json={'user_id':123,'role':'owner'}).status_code==503
+        assert c.post('/api/v1/auth/max').status_code==503
+        assert c.post('/api/v1/auth/max',json={'user_id':123,'role':'owner'}).status_code==422
         assert c.post(f'/api/v1/groups/{SLUG}/tasks',json={'title':'fake'}).status_code==405
 
 def test_repeat_import_and_progress_preserved(db):

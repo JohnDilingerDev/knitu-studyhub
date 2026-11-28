@@ -2,7 +2,7 @@
 import argparse, datetime as dt, hashlib, json
 from pathlib import Path
 from sqlalchemy import select, delete
-from .models import University, Group, Subject, Task, ScheduleEntry, Variant, Snapshot, Announcement
+from .models import University, Group, Subject, Task, ScheduleEntry, Variant, Snapshot, Announcement, AuditEvent
 from .db import database_url, make_engine, session_factory
 
 SLUG='knitu-661-m52-2026-1'
@@ -41,6 +41,9 @@ def import_bundle(s,data,content):
     if not group:
         group=Group(university_id=uni.id,slug=SLUG,code=GROUP,term='2026/2027-1',public=True);s.add(group);s.flush()
     g=group.id
+    s.scalar(select(Snapshot).where(Snapshot.group_id==g).with_for_update())
+    if s.scalar(select(AuditEvent.id).where(AuditEvent.group_id==g).limit(1)) is not None:
+        raise ValueError("Administrative edits exist; full import blocked. Use sync_schedule for timetable updates.")
     for code,title in data['subjects'].items(): s.merge(Subject(group_id=g,code=code,title=title))
     s.flush()
     incoming={t['id'] for t in tasks}

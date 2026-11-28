@@ -23,6 +23,7 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-studyhub}
       MYSQL_USER: ${MYSQL_USER:-studyhub}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set a unique app password in .env}
+      MAX_BOT_TOKEN: ${MAX_BOT_TOKEN:-}
     depends_on:
       db:
         condition: service_healthy

@@ -63,3 +63,57 @@ python -m pytest -q
 4. Реализовать API для администратора и личных отметок; добавить журнал действий, серверную валидацию и тесты разграничения групп. Определить основания обработки, сроки хранения и локализацию персональных данных до их сбора.
 5. Перевести интерфейс 1.2 на API через адаптер, сохранив импорт/экспорт локального прогресса и режим гостя. Не включать авторизацию или публичную запись, пока серверная проверка не готова. Настроить HTTPS и прокси Nginx; предпочтительно обслуживать приватное приложение и API с одного российского серверного origin.
 6. После верификации MAX: бот, мини-приложение, пользовательские уведомления по согласию и настройкам, проверка платформой. Обычный браузерный вход проектировать отдельно, не предполагая наличие OAuth.
+
+## 1.3.1-dev: MAX sessions and protected operations
+
+The above 1.3.0 notes describe the original baseline. In 1.3.1 the MAX
+endpoint is implemented but stays disabled while MAX_BOT_TOKEN is empty.
+Use Alembic upgrade head (migration 0002_auth, 14 application tables).
+The live PWA is still 1.2; no client-side login UI is included in this release.
+
+- POST /api/v1/auth/max with JSON {"init_data":"raw MAX Bridge initData"}.
+  Official signature algorithm: https://dev.max.ru/docs/webapps/validation/.
+  Launch validity: 5 min, future clock skew <=30 sec, signature accepted once.
+  Only operator-provisioned, active accounts can log in; no client role grants.
+  Response contains an opaque bearer token, valid for 8 hours. Only its SHA-256
+  digest is persisted. Keep token in memory, never URLs or public localStorage.
+- GET /api/v1/me and POST /api/v1/auth/logout (Authorization: Bearer TOKEN).
+- GET /api/v1/groups/{slug}/me/progress; PUT .../me/digit with digit 0..9 or null;
+  PUT .../me/progress/{task_code} with status. Personal marks are not grades.
+- POST .../admin/tasks, PUT .../admin/tasks/{code}; body: subject, title,
+  description, deadline (ISO date or null), deadlineNote, source, show_deadline
+  (optional boolean; omitted preserves list inclusion if deadline exists).
+- GET/POST .../admin/announcements, PUT .../admin/announcements/{id}; body:
+  date, title, body, source. GET .../admin/audit lists 100 recent group edits.
+  Task and announcement writes and audit records commit together.
+- No access tokens, launch data, bot tokens, or private progress in public bundle.
+  Closed-group academic bundle still not served through public API.
+
+Provision a verified MAX user ID through trusted server shell only, e.g.
+`python -m app.access_cli grant VERIFIED_NUMERIC_ID owner --group knitu-661-m52-2026-1`
+(replace VERIFIED_NUMERIC_ID with verified numeric ID, not student-book number).
+Roles student/admin require --group. Owner is a global flag; group membership
+role changes do not revoke it. Disable accounts with `... disable ID` (also
+revokes sessions). Run `python -m app.access_cli cleanup` periodically to remove
+expired sessions and launch signatures. Keep bot token solely in server .env.
+Before enabling: HTTPS, origin and reverse proxy configuration, request-size
+and rate limits, access-log redaction, backup/restore and privacy documentation.
+Real MAX Mini App, browser login, automated bot notifications and deployment
+are separate later steps. Test credentials are synthetic only.
+
+### Timetable update without overwriting content
+
+Initial import is unchanged before administrative writes. After an audited
+admin edit, full JSON re-import is deliberately blocked. Run
+`python -m app.sync_schedule /path/to/verified-published-data.json` on a trusted
+server-side file from StudyHub after a successful check (sync.status=ok, age
+<=12h, fixed semester/coverage). It replaces timetable records only, not tasks,
+announcements or progress. Failed/stale sync is rejected. This is an operator
+command; automated transfer from GitHub to the server is not connected yet.
+
+### Tests
+
+Run `python -m pytest -q` for SQLite tests. The CI installer also runs migration
+and imports in disposable MySQL 8.4 and private API tests on dedicated database
+studyhub_private_ci. Those tests drop their own tables; NEVER point
+STUDYHUB_PRIVATE_TEST_DB at a production database. No real MAX token needed.
