@@ -2,7 +2,7 @@ name: StudyHub - Server CI
 on:
   push:
     branches: [develop]
-    paths: ['server/**', '.github/workflows/server-ci.yml']
+    paths: ['server/**', '.github/workflows/server-ci-133.yml']
 permissions:
   contents: read
 concurrency:
