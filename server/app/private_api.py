@@ -28,6 +28,10 @@ class Mark(Input):
 class Digit(Input):
     digit: int | None = Field(ge=0,le=9,strict=True)
 
+class ImportMarks(Input):
+    progress: dict[str, Literal['not_started','in_progress','prepared','checked','submitted','accepted','revise','not_required','clarify']] = Field(max_length=1000)
+    digit: int | None = Field(default=None,ge=0,le=9,strict=True)
+
 class TaskInput(Input):
     subject: str = Field(min_length=1,max_length=32)
     title: str = Field(min_length=1,max_length=255)
@@ -115,7 +119,7 @@ def register(app, db):
         return {'digit':m.digit,'progress':{p.task_code:p.status for p in rows}}
     @app.put('/api/v1/groups/{slug}/me/digit')
     def set_digit(slug:str,body:Digit,actor=Depends(current),s=Depends(db)):
-        u,_=actor;g,m=scoped(s,slug,u);m.digit=body.digit;s.commit();return {'digit':m.digit}
+        u,_=actor;g,_=scoped(s,slug,u);m=s.scalar(select(Membership).where(Membership.group_id==g.id,Membership.user_id==u.id).with_for_update().execution_options(populate_existing=True));m.digit=body.digit;s.commit();return {'digit':m.digit}
     @app.put('/api/v1/groups/{slug}/me/progress/{code}')
     def set_mark(slug:str,code:str,body:Mark,actor=Depends(current),s=Depends(db)):
         u,_=actor;g,_=scoped(s,slug,u);t=s.get(Task,(g.id,code))
@@ -124,6 +128,20 @@ def register(app, db):
         s.scalar(select(Membership).where(Membership.group_id==g.id,Membership.user_id==u.id).with_for_update())
         s.merge(Progress(group_id=g.id,user_id=u.id,task_code=code,status=body.status));s.commit()
         return {'id':code,'status':body.status}
+    @app.post('/api/v1/groups/{slug}/me/import')
+    def import_marks(slug:str,body:ImportMarks,actor=Depends(current),s=Depends(db)):
+        u,_=actor;g,_=scoped(s,slug,u)
+        m=s.scalar(select(Membership).where(Membership.group_id==g.id,Membership.user_id==u.id).with_for_update().execution_options(populate_existing=True))
+        if m is None: raise HTTPException(403,'Membership required')
+        active=set(s.scalars(select(Task.code).where(Task.group_id==g.id,Task.active.is_(True))))
+        rows={p.task_code:p.status for p in s.scalars(select(Progress).where(Progress.group_id==g.id,Progress.user_id==u.id).with_for_update())}
+        added=0
+        for code,status in body.progress.items():
+            if code in active and code not in rows:
+                s.add(Progress(group_id=g.id,user_id=u.id,task_code=code,status=status));rows[code]=status;added+=1
+        if m.digit is None and body.digit is not None: m.digit=body.digit
+        digit=m.digit;s.commit()
+        return {'digit':digit,'progress':rows,'added':added}
     def save_task(s,slug,u,body,code=None):
         g,_=scoped(s,slug,u,True);snapshot=lock_snapshot(s,g)
         if not s.get(Subject,(g.id,body.subject)): raise HTTPException(422,'Unknown subject')

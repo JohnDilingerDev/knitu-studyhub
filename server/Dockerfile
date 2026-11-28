@@ -6,6 +6,7 @@ COPY app ./app
 COPY migrations ./migrations
 COPY alembic.ini .
 COPY seed ./seed
+COPY web ./web
 USER studyhub
 EXPOSE 8000
 CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8000"]
