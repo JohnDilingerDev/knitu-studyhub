@@ -1,0 +1,9 @@
+[Unit]
+Description=StudyHub verified timetable sync and expired sessions cleanup
+After=docker.service network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/studyhub/server
+ExecStart=/usr/bin/docker compose exec -T api python -m app.maintenance all
+TimeoutStartSec=180

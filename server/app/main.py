@@ -18,7 +18,7 @@ def create_app(engine=None):
         app.state.sessions=session_factory(app.state.engine)
         yield
         if engine is None: app.state.engine.dispose()
-    app=FastAPI(title='StudyHub API',version='1.3.2-dev',lifespan=lifespan)
+    app=FastAPI(title='StudyHub API',version='1.3.3-dev',lifespan=lifespan)
     def db():
         with app.state.sessions() as s: yield s
     def group(slug,s):
@@ -36,7 +36,7 @@ def create_app(engine=None):
         return list(s.scalars(select(Variant).where(Variant.group_id==g).order_by(Variant.task_number,Variant.variant_number)))
     @app.get('/health')
     def health(s=Depends(db)):
-        s.execute(text('SELECT 1'));return {'status':'ok','version':'1.3.2-dev'}
+        s.execute(text('SELECT 1'));return {'status':'ok','version':'1.3.3-dev'}
     @app.get('/api/v1/groups')
     def groups(s=Depends(db)):
         return [{'slug':g.slug,'code':g.code,'term':g.term} for g in s.scalars(select(Group).where(Group.public.is_(True)).order_by(Group.slug))]
@@ -58,7 +58,7 @@ def create_app(engine=None):
         if not snapshot: raise HTTPException(404,'Data not imported')
         vs=variant_rows(s,g)
         cm=snapshot.content_meta
-        return {'version':'1.3.2-dev','updated':cm['updated'],'schedule':{**snapshot.schedule_meta,'entries':entries(s,g)},'subjects':{r.code:r.title for r in s.scalars(select(Subject).where(Subject.group_id==g))},'tasks':tasks(s,g),'variants':[[v.topic for v in vs if v.task_number==i] for i in range(1,5)],'deadlines':cm['deadlines'],'announcements':[a.payload for a in s.scalars(select(Announcement).where(Announcement.group_id==g).order_by(Announcement.sort_order))],'content_changes':cm.get('content_changes',[]),'schedule_changes':cm.get('schedule_changes',[]),**({'sync':cm['sync']} if 'sync' in cm else {})}
+        return {'version':'1.3.3-dev','updated':cm['updated'],'schedule':{**snapshot.schedule_meta,'entries':entries(s,g)},'subjects':{r.code:r.title for r in s.scalars(select(Subject).where(Subject.group_id==g))},'tasks':tasks(s,g),'variants':[[v.topic for v in vs if v.task_number==i] for i in range(1,5)],'deadlines':cm['deadlines'],'announcements':[a.payload for a in s.scalars(select(Announcement).where(Announcement.group_id==g).order_by(Announcement.sort_order))],'content_changes':cm.get('content_changes',[]),'schedule_changes':cm.get('schedule_changes',[]),**({'sync':cm['sync']} if 'sync' in cm else {})}
     @app.exception_handler(RequestValidationError)
     async def safe_validation(request:Request, exc:RequestValidationError):
         # Do not reflect signed launch data, credentials or personal inputs in errors.

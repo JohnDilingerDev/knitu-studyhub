@@ -1,0 +1,9 @@
+[Unit]
+Description=StudyHub MySQL local backup
+After=docker.service
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/studyhub/server
+ExecStart=/bin/bash /opt/studyhub/server/ops/backup.sh /var/lib/studyhub-backups
+TimeoutStartSec=900
+UMask=0077

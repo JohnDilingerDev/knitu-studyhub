@@ -11,13 +11,23 @@ def main():
     grant=sub.add_parser('grant');grant.add_argument('max_id',type=int);grant.add_argument('role',choices=['student','admin','owner']);grant.add_argument('--group')
     revoke=sub.add_parser('disable');revoke.add_argument('max_id',type=int)
     sub.add_parser('cleanup')
+    sub.add_parser('list')
+    demote=sub.add_parser('revoke-owner');demote.add_argument('max_id',type=int)
     args=p.parse_args();engine=make_engine(database_url());sf=session_factory(engine)
     try:
         with sf.begin() as s:
             if args.command=='cleanup':
                 now=int(time.time());s.execute(delete(AuthSession).where(AuthSession.expires_at<=now));s.execute(delete(UsedLaunch).where(UsedLaunch.expires_at<now));return
+            if args.command=='list':
+                for u in s.scalars(select(User).order_by(User.id)):
+                    memberships=s.execute(select(Membership,Group).join(Group,Membership.group_id==Group.id).where(Membership.user_id==u.id)).all()
+                    print(f'MAX ID={u.max_user_id} active={u.active} owner={u.owner} groups='+','.join(f'{g.slug}:{m.role}' for m,g in memberships))
+                return
             if not 0<args.max_id<2**63: p.error('invalid MAX ID')
             u=s.scalar(select(User).where(User.max_user_id==args.max_id))
+            if args.command=='revoke-owner':
+                if not u: p.error('unknown user')
+                u.owner=False;s.execute(delete(AuthSession).where(AuthSession.user_id==u.id));return
             if args.command=='disable':
                 if not u: p.error('unknown user')
                 u.active=False;s.execute(delete(AuthSession).where(AuthSession.user_id==u.id));return
